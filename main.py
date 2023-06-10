@@ -1,52 +1,31 @@
-from collections import Counter
+from copy import deepcopy
 
 import yaml
+from tqdm import tqdm
 
-from data import csv_to_text, CharacterDataset
+from data import csv_to_text, CharacterDataset, get_tokenizers, inspect_data
 import torch
 from torch.utils.data import DataLoader
+from lightning.fabric import seed_everything
+
+from models import get_model
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-N_BATCHES_TO_PRINT = 2
-
-
-def get_tokenizers(text):
-    # here are all the unique characters that occur in this text
-    chars = sorted(list(set(text)))
-    vocab_size = len(chars)
-    char_freq = dict(Counter(text).most_common())
-
-    print(f"Vocabulary size: {vocab_size}")
-    print(f"Character frequencies:")
-    for k, v in char_freq.items():
-        print(f"{[k]}: {v}")
-
-    # create a mapping from characters to integers
-    s_to_i = {ch: i for i, ch in enumerate(chars)}
-    i_to_s = {i: ch for i, ch in enumerate(chars)}
-
-    def encode(s):
-        return [s_to_i[c] for c in s]  # encoder: take a string, output a list of integers
-
-    def decode(l):
-        return "".join([i_to_s[i] for i in l])  # decoder: take a list of integers, output a string
-
-    return encode, decode, vocab_size
 
 
 def main():
-    torch.manual_seed(2023)
+    seed_everything(2023)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     with open("config.yaml", "r") as file:
         cfg = yaml.safe_load(file)
 
     # Train and test splits
-    text_train, text_test = csv_to_text(cfg["csv_filepath"], train_test_pct=cfg["train_test_pct"])
+    text_train, text_test = csv_to_text(
+        cfg["csv_filepath"], train_test_pct=cfg["train_test_pct"], characters_to_drop=cfg["characters_to_drop"]
+    )
 
-    encode, decode, vocab_size = get_tokenizers(text_train)
-
-    print(encode("hello world"))
-    print(decode(encode("hello world")))
+    encode, decode, vocab_size = get_tokenizers(text_train, tokenizer_name=cfg["tokenizer_name"])
 
     # Train and test splits
     train_val_data = torch.tensor(encode(text_train), dtype=torch.long)
@@ -65,14 +44,41 @@ def main():
     val_dataloader = DataLoader(val_dataset, batch_size=cfg["batch_size"], shuffle=False, drop_last=True)
     test_dataloader = DataLoader(test_dataset, batch_size=cfg["batch_size"], shuffle=False, drop_last=True)
 
-    print("Sample inputs X --> targets Y")
-    for i_b, batch in enumerate(train_dataloader):
-        print(f"Batch {i_b}")
-        X, Y = batch
-        for x, y in zip(X, Y):
-            print(f"{decode(x.tolist())} --> {decode(y.tolist())}")
-        if i_b >= N_BATCHES_TO_PRINT:
-            break
+    model = get_model(model_name=cfg["model_name"], vocab_size=vocab_size)
+    initial_model = deepcopy(model)
+
+    inspect_data(train_dataloader=train_dataloader, encode=encode, decode=decode, model=model, cfg=cfg)
+
+    # Define optimizer and scheduler
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["learning_rate"])
+
+    # Train the model
+    for epoch in range(cfg["n_epochs"]):
+        print(f"Epoch: {epoch}")
+        for i, batch in enumerate(tqdm(train_dataloader)):
+            X, Y = batch
+            logits, loss = model(idx=X, targets=Y)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            if i % cfg["n_batches_to_print"] == 0:
+                print(f"\nBatch {i} loss: {loss.item()}")
+
+            if i >= cfg["max_iters"]:
+                break
+
+    # Generate from the model
+
+    # Starting point is a tensor of shape (B, T) = (1, 1), here chosen as the newline character:
+    # its index is obtained by calling the encode function
+    context = torch.tensor(encode("\n")[0], dtype=torch.long, device=device).view(1, -1)
+
+    print("Initial model:")
+    print(decode(initial_model.generate(context, max_new_tokens=500)[0].tolist()))
+    print("Trained model:")
+    print(decode(model.generate(context, max_new_tokens=500)[0].tolist()))
 
     bla = 1
 
