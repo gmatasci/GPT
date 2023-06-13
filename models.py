@@ -16,9 +16,10 @@ def get_model(model_name="bigram", cfg=None, vocab_size=None, device=torch.devic
             n_embd=cfg["n_embd"],
             block_size=cfg["block_size"],
             dropout=cfg["dropout"],
+            device=device,
         )
-
-    return model.to(device)
+    model = model.to(device)
+    return model
 
 
 # Super simple bigram model
@@ -65,9 +66,19 @@ class BigramLanguageModel(nn.Module):
 
 # Generative Pre-trained Transformer model
 class GPT(nn.Module):
-    def __init__(self, vocab_size, n_transformer_blocks=12, n_head=12, n_embd=768, block_size=1024, dropout=0.1):
+    def __init__(
+        self,
+        vocab_size,
+        n_transformer_blocks=12,
+        n_head=12,
+        n_embd=768,
+        block_size=1024,
+        dropout=0.1,
+        device=torch.device("cpu"),
+    ):
         super().__init__()
         self.block_size = block_size
+        self.device = device
         # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
@@ -97,7 +108,7 @@ class GPT(nn.Module):
 
         # idx and targets are both (B,T) tensor of integers
         tok_emb = self.token_embedding_table(idx)  # (B,T,C)
-        pos_emb = self.position_embedding_table(torch.arange(T))  # (T,C)
+        pos_emb = self.position_embedding_table(torch.arange(T, device=self.device))  # (T,C)
         x = tok_emb + pos_emb  # (B,T,C)
         x = self.transformer_blocks(x)  # (B,T,C)
         x = self.ln_f(x)  # (B,T,C)
@@ -114,6 +125,7 @@ class GPT(nn.Module):
         return logits, loss
 
     def generate(self, idx, max_new_tokens):
+        self.eval()
         # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
             # crop idx to the last block_size tokens

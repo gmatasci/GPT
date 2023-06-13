@@ -18,16 +18,16 @@ model_name: gpt
 
 n_batches_to_print: 1000
 #max_iters: null  # 500
-max_iters: 20
+max_iters: 5000
 
 # Hyperparameters
-n_epochs: 1
+n_epochs: 5
 learning_rate: 0.0001
 
-# batch_size: 64 # how many independent sequences will we process in parallel?
-batch_size: 4
-block_size: 256 # what is the maximum context length for predictions?
-#block_size: 8 # what is the maximum context length for predictions?
+batch_size: 256  # how many independent sequences will we process in parallel?
+#batch_size: 4
+block_size: 256  # what is the maximum context length for predictions?
+#block_size: 8
 n_embd: 384
 n_head: 6
 n_transformer_blocks: 6

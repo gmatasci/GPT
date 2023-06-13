@@ -69,13 +69,18 @@ def main():
         f"\nN parameters: {sum(p.numel() for p in model.parameters())}"
         f"\nN trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
     )
-    initial_model = deepcopy(model)
 
     if cfg["inspect_data"]:
         inspect_data(train_dataloader=train_dataloader, encode=encode, decode=decode, model=model, cfg=cfg)
 
     # Define optimizer and scheduler
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["learning_rate"])
+
+    # Starting point is a tensor of shape (B, T) = (1, 1), here chosen as the newline character:
+    # its index is obtained by calling the encode function
+    context = torch.tensor(encode("\n")[0], dtype=torch.long, device=DEVICE).view(1, -1)
+    print("\nInitial model:")
+    print(decode(model.generate(context, max_new_tokens=500)[0].tolist()))
 
     # Train the model
     for epoch in range(cfg["n_epochs"]):
@@ -99,18 +104,9 @@ def main():
         loss = estimate_loss(model=model, dataloader=val_dataloader, max_iters=cfg["max_iters"])
         print(f"Epoch {epoch}: val loss {loss:.4f}")
 
-    # Generate from the model
-
-    # Starting point is a tensor of shape (B, T) = (1, 1), here chosen as the newline character:
-    # its index is obtained by calling the encode function
-    context = torch.tensor(encode("\n")[0], dtype=torch.long, device=DEVICE).view(1, -1)
-
-    print("\nInitial model:")
-    print(decode(initial_model.generate(context, max_new_tokens=500)[0].tolist()))
-    print("\nTrained model:")
-    print(decode(model.generate(context, max_new_tokens=500)[0].tolist()))
-
-    bla = 1
+        # Generate from current model
+        print(f"\nGenerated text by the model after epoch {epoch}:")
+        print(decode(model.generate(context, max_new_tokens=500)[0].tolist()))
 
 
 if __name__ == "__main__":
