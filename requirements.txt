@@ -1,0 +1,4 @@
+unidecode
+tiktoken
+lightning
+torch==2.0.1
