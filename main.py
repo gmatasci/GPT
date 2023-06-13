@@ -61,6 +61,14 @@ def main():
     test_dataloader = DataLoader(test_dataset, batch_size=cfg["batch_size"], shuffle=False, drop_last=True)
 
     model = get_model(model_name=cfg["model_name"], cfg=cfg, vocab_size=vocab_size, device=DEVICE)
+    print(
+        f"Training {cfg['model_name']} on {DEVICE} "
+        f"for {cfg['n_epochs']} epochs "
+        f"with a learning rate of {cfg['learning_rate']} "
+        f"and a batch size of {cfg['batch_size']}"
+        f"\nN parameters: {sum(p.numel() for p in model.parameters())}"
+        f"\nN trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
+    )
     initial_model = deepcopy(model)
 
     inspect_data(train_dataloader=train_dataloader, encode=encode, decode=decode, model=model, cfg=cfg)

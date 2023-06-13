@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from layers import Head
+from layers import TransformerBlock
 
 
 def get_model(model_name="bigram", cfg=None, vocab_size=None, device=torch.device("cpu")):
@@ -11,7 +11,7 @@ def get_model(model_name="bigram", cfg=None, vocab_size=None, device=torch.devic
     elif model_name == "gpt":
         model = GPT(
             vocab_size=vocab_size,
-            n_layer=cfg["n_layer"],
+            n_transformer_blocks=cfg["n_transformer_blocks"],
             n_head=cfg["n_head"],
             n_embd=cfg["n_embd"],
             block_size=cfg["block_size"],
@@ -21,7 +21,7 @@ def get_model(model_name="bigram", cfg=None, vocab_size=None, device=torch.devic
     return model.to(device)
 
 
-# super simple bigram model
+# Super simple bigram model
 class BigramLanguageModel(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
@@ -63,23 +63,28 @@ class BigramLanguageModel(nn.Module):
         return idx
 
 
+# Generative Pre-trained Transformer model
 class GPT(nn.Module):
-    def __init__(self, vocab_size, n_layer=12, n_head=12, n_embd=768, block_size=1024, dropout=0.1):
+    def __init__(self, vocab_size, n_transformer_blocks=12, n_head=12, n_embd=768, block_size=1024, dropout=0.1):
         super().__init__()
-        # each token directly reads off the logits for the next token from a lookup table
         self.block_size = block_size
+        # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
-        self.position_embedding_table = nn.Embedding(block_size, n_embd)  # fixed positional embeddings
-        head_size = n_embd // n_head
-        self.sa_head = Head(n_embd=n_embd, head_size=head_size, block_size=block_size, dropout=0.1)
-        # self.blocks = nn.Sequential(*[Block(n_embd, n_head=n_head) for _ in range(n_layer)])
-        # self.ln_f = nn.LayerNorm(n_embd)  # final layer norm
-        self.lm_head = nn.Linear(head_size, vocab_size)
+        self.position_embedding_table = nn.Embedding(block_size, n_embd)
+        self.transformer_blocks = nn.Sequential(
+            *[
+                TransformerBlock(n_embd=n_embd, n_head=n_head, block_size=block_size, dropout=dropout)
+                for _ in range(n_transformer_blocks)
+            ]
+        )
+        self.ln_f = nn.LayerNorm(n_embd)  # final layer norm
+        self.lm_head = nn.Linear(n_embd, vocab_size)
 
         # better init, not covered in the original GPT video, but important, will cover in followup video
         self.apply(self._init_weights)
 
-    def _init_weights(self, module):
+    @staticmethod
+    def _init_weights(module):
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
             if module.bias is not None:
@@ -92,11 +97,10 @@ class GPT(nn.Module):
 
         # idx and targets are both (B,T) tensor of integers
         tok_emb = self.token_embedding_table(idx)  # (B,T,C)
-        pos_emb = self.position_embedding_table(torch.arange(T))  # TODO needed? device=device))  # (T,C)
+        pos_emb = self.position_embedding_table(torch.arange(T))  # (T,C)
         x = tok_emb + pos_emb  # (B,T,C)
-        x = self.sa_head(x)  # (B,T,C)
-        # x = self.blocks(x)  # (B,T,C)
-        # x = self.ln_f(x)  # (B,T,C)
+        x = self.transformer_blocks(x)  # (B,T,C)
+        x = self.ln_f(x)  # (B,T,C)
         logits = self.lm_head(x)  # (B,T,vocab_size)
 
         if targets is None:
@@ -112,17 +116,17 @@ class GPT(nn.Module):
     def generate(self, idx, max_new_tokens):
         # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
-            # Crop idx to the last block_size tokens
+            # crop idx to the last block_size tokens
             idx_cond = idx[:, -self.block_size :]
-            # Get the predictions
-            logits, loss = self(idx_cond)
-            # Focus only on the last time step
+            # get the predictions
+            logits, _ = self(idx_cond)
+            # focus only on the last time step
             logits = logits[:, -1, :]  # becomes (B, C)
-            # Apply softmax to get probabilities
+            # apply softmax to get probabilities
             probs = F.softmax(logits, dim=-1)  # (B, C)
-            # Sample from the distribution
+            # sample from the distribution
             idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
-            # Append sampled index to the running sequence
+            # append sampled index to the running sequence
             idx = torch.cat((idx, idx_next), dim=1)  # (B, T+1)
         return idx
 
