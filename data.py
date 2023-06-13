@@ -118,4 +118,7 @@ class CharacterDataset(Dataset):
     def __getitem__(self, index):
         x = self.data[index : index + self.block_size]
         y = self.data[index + 1 : index + 1 + self.block_size]
+        if len(x) < self.block_size:
+            x = torch.cat([x, torch.zeros(self.block_size - len(x), dtype=torch.long)])
+            y = torch.cat([y, torch.zeros(self.block_size - len(y), dtype=torch.long)])
         return x, y

@@ -13,9 +13,25 @@ from models import get_model
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
+@torch.no_grad()
+def estimate_loss(model, dataloader, max_iters=None):
+    model.eval()
+    losses = torch.zeros(min(max_iters, len(dataloader)))
+    for i, batch in enumerate(tqdm(dataloader)):
+        if max_iters is not None and i >= max_iters:
+            break
+
+        X, Y = batch
+        X, Y = X.to(DEVICE), Y.to(DEVICE)
+        _, loss = model(idx=X, targets=Y)
+        losses[i] = loss.item()
+
+    model.train()
+    return losses.mean().item()
+
+
 def main():
     seed_everything(2023)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     with open("config.yaml", "r") as file:
         cfg = yaml.safe_load(file)
@@ -44,7 +60,7 @@ def main():
     val_dataloader = DataLoader(val_dataset, batch_size=cfg["batch_size"], shuffle=False, drop_last=True)
     test_dataloader = DataLoader(test_dataset, batch_size=cfg["batch_size"], shuffle=False, drop_last=True)
 
-    model = get_model(model_name=cfg["model_name"], vocab_size=vocab_size)
+    model = get_model(model_name=cfg["model_name"], cfg=cfg, vocab_size=vocab_size, device=DEVICE)
     initial_model = deepcopy(model)
 
     inspect_data(train_dataloader=train_dataloader, encode=encode, decode=decode, model=model, cfg=cfg)
@@ -57,6 +73,7 @@ def main():
         print(f"Epoch: {epoch}")
         for i, batch in enumerate(tqdm(train_dataloader)):
             X, Y = batch
+            X, Y = X.to(DEVICE), Y.to(DEVICE)
             logits, loss = model(idx=X, targets=Y)
 
             optimizer.zero_grad()
@@ -64,20 +81,24 @@ def main():
             optimizer.step()
 
             if i % cfg["n_batches_to_print"] == 0:
-                print(f"\nBatch {i} loss: {loss.item()}")
+                print(f"\nEpoch {epoch}, batch {i} loss: {loss.item()}")
 
-            if i >= cfg["max_iters"]:
+            if cfg["max_iters"] is not None and i >= cfg["max_iters"]:
                 break
+
+        # Val loss
+        loss = estimate_loss(model=model, dataloader=val_dataloader, max_iters=cfg["max_iters"])
+        print(f"Epoch {epoch}: val loss {loss:.4f}")
 
     # Generate from the model
 
     # Starting point is a tensor of shape (B, T) = (1, 1), here chosen as the newline character:
     # its index is obtained by calling the encode function
-    context = torch.tensor(encode("\n")[0], dtype=torch.long, device=device).view(1, -1)
+    context = torch.tensor(encode("\n")[0], dtype=torch.long, device=DEVICE).view(1, -1)
 
-    print("Initial model:")
+    print("\nInitial model:")
     print(decode(initial_model.generate(context, max_new_tokens=500)[0].tolist()))
-    print("Trained model:")
+    print("\nTrained model:")
     print(decode(model.generate(context, max_new_tokens=500)[0].tolist()))
 
     bla = 1
