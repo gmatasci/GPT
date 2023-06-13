@@ -2,6 +2,9 @@
 csv_filepath: interview_data.csv
 characters_to_drop:
     - "-"
+
+inspect_data: false
+
 train_test_pct: 0.8
 train_val_pct: 0.8
 

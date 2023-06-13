@@ -71,7 +71,8 @@ def main():
     )
     initial_model = deepcopy(model)
 
-    inspect_data(train_dataloader=train_dataloader, encode=encode, decode=decode, model=model, cfg=cfg)
+    if cfg["inspect_data"]:
+        inspect_data(train_dataloader=train_dataloader, encode=encode, decode=decode, model=model, cfg=cfg)
 
     # Define optimizer and scheduler
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["learning_rate"])

@@ -7,7 +7,8 @@ from torch.utils.data import Dataset
 from unidecode import unidecode
 import tiktoken
 
-N_BATCHES_TO_PRINT = 2
+N_BATCHES_TO_PRINT = 1
+N_SAMPLES_TO_PRINT = 3
 
 
 def csv_to_text(csv_filepath, train_test_pct=0.75, characters_to_drop=None):
@@ -94,7 +95,7 @@ def inspect_data(train_dataloader, encode, decode, model, cfg):
     for i_b, batch in enumerate(train_dataloader):
         print(f"\nBatch {i_b}")
         X, Y = batch
-        for x, y in zip(X, Y):  # along batch dimension
+        for i_s, (x, y) in enumerate(zip(X, Y)):  # along batch dimension
             print(f"{decode(x.tolist())} --> {decode(y.tolist())}")
 
             print("Target character for each input context between 1 and block size")
@@ -104,6 +105,9 @@ def inspect_data(train_dataloader, encode, decode, model, cfg):
                 print(f"Input: {context.tolist()} --> Target: {target}")
 
         if i_b >= N_BATCHES_TO_PRINT:
+            break
+
+        if i_s >= N_SAMPLES_TO_PRINT:
             break
 
 
