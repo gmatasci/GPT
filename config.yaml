@@ -9,8 +9,8 @@ train_test_pct: 0.8
 train_val_pct: 0.8
 
 # Data config
-tokenizer_name: character  # cl100k_base (for gpt-4), gpt2, character
-# tokenizer_name: cl100k_base
+#tokenizer_name: character  # cl100k_base (for gpt-4), gpt2, character
+tokenizer_name: gpt2
 
 # Model config
 #model_name: bigram  # bigram, gpt
@@ -20,15 +20,24 @@ n_batches_to_print: 1000
 #max_iters: null  # 500
 max_iters: 5000
 
+torch_compile: true
+
 # Hyperparameters
 n_epochs: 5
 learning_rate: 0.0001
 
-batch_size: 256  # how many independent sequences will we process in parallel?
-#batch_size: 4
-block_size: 256  # what is the maximum context length for predictions?
-#block_size: 8
-n_embd: 384
-n_head: 6
-n_transformer_blocks: 6
-dropout: 0.2
+#batch_size: 256  # how many independent sequences will we process in parallel?
+batch_size: 4
+
+#model_config:
+#    block_size: 256  # what is the maximum context length for predictions?
+#    n_embd: 384
+#    n_head: 6
+#    n_transformer_blocks: 6
+#    dropout: 0.2
+model_config:
+    block_size: 12  # what is the maximum context length for predictions?
+    n_embd: 64
+    n_head: 3
+    n_transformer_blocks: 3
+    dropout: 0.2

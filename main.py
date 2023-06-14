@@ -52,15 +52,21 @@ def main():
     train_data = train_val_data[:n]
     val_data = train_val_data[n:]
 
-    train_dataset = CharacterDataset(train_data, block_size=cfg["block_size"])
-    val_dataset = CharacterDataset(val_data, block_size=cfg["block_size"])
-    test_dataset = CharacterDataset(test_data, block_size=cfg["block_size"])
+    train_dataset = CharacterDataset(train_data, block_size=cfg["model_config"]["block_size"])
+    val_dataset = CharacterDataset(val_data, block_size=cfg["model_config"]["block_size"])
+    test_dataset = CharacterDataset(test_data, block_size=cfg["model_config"]["block_size"])
 
     train_dataloader = DataLoader(train_dataset, batch_size=cfg["batch_size"], shuffle=True, drop_last=True)
     val_dataloader = DataLoader(val_dataset, batch_size=cfg["batch_size"], shuffle=False, drop_last=True)
     test_dataloader = DataLoader(test_dataset, batch_size=cfg["batch_size"], shuffle=False, drop_last=True)
 
-    model = get_model(model_name=cfg["model_name"], cfg=cfg, vocab_size=vocab_size, device=DEVICE)
+    model = get_model(
+        model_name=cfg["model_name"],
+        model_config=cfg["model_config"],
+        vocab_size=vocab_size,
+        torch_compile=cfg["torch_compile"],
+        device=DEVICE,
+    )
     print(
         f"Training {cfg['model_name']} on {DEVICE} "
         f"for {cfg['n_epochs']} epochs "

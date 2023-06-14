@@ -2,23 +2,26 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from layers import TransformerBlock
+import os
 
 
-def get_model(model_name="bigram", cfg=None, vocab_size=None, device=torch.device("cpu")):
+def get_model(model_name="bigram", model_config=None, vocab_size=None, torch_compile=False, device=torch.device("cpu")):
     model_name = model_name.lower()
     if model_name == "bigram":
         model = BigramLanguageModel(vocab_size=vocab_size)
     elif model_name == "gpt":
         model = GPT(
             vocab_size=vocab_size,
-            n_transformer_blocks=cfg["n_transformer_blocks"],
-            n_head=cfg["n_head"],
-            n_embd=cfg["n_embd"],
-            block_size=cfg["block_size"],
-            dropout=cfg["dropout"],
+            n_transformer_blocks=model_config["n_transformer_blocks"],
+            n_head=model_config["n_head"],
+            n_embd=model_config["n_embd"],
+            block_size=model_config["block_size"],
+            dropout=model_config["dropout"],
             device=device,
         )
     model = model.to(device)
+    if torch_compile and os.name != "nt":
+        model = torch.compile(model)
     return model
 
 
